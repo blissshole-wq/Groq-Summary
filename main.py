@@ -14,7 +14,7 @@ API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 STRING_SESSION = os.environ.get("STRING_SESSION", "")
 
-# உங்கள் Source சேனல்களின் ID-கள் (இங்கே உங்கள் 14 சேனல்களின் ID-களைப் போடுங்கள்)
+# உங்கள் சேனல்கள்
 SOURCE_CHANNELS = [
 -1001096581370, 
 -1002897476578,
@@ -30,7 +30,7 @@ SOURCE_CHANNELS = [
 -1001421618043,
 -1001299805329,
 -1001247488093,
- 
+
 ]
 
 client = Groq(api_key=GROQ_API_KEY)
@@ -55,23 +55,20 @@ async def fetch_recent_news():
     now = datetime.now(ist)
     time_limit = now - timedelta(hours=12) 
     
+    print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
     for channel in SOURCE_CHANNELS:
         try:
-            # ஒரு சேனலுக்கு 1 மெசேஜ் மட்டும்
             messages = await tele_client.get_messages(channel, limit=1) 
             for msg in messages:
                 if msg.date.astimezone(ist) > time_limit and msg.text:
-                    # ஒரு மெசேஜுக்கு 100 எழுத்துக்கள் மட்டும் (மிக முக்கியமான தலைப்பு மட்டும்)
-                    short_text = msg.text[:100] 
+                    short_text = msg.text[:150] # ஒரு செய்தி 150 எழுத்துக்கள் மட்டும்
                     all_news.append(short_text)
-        except Exception as e:
-            pass # எரர் வந்தால் அமைதியாக அடுத்ததற்குப் போகட்டும்
+        except Exception:
+            pass
             
     await tele_client.disconnect()
-    
-    # மொத்த டெக்ஸ்ட்டும் 1500 எழுத்துக்களுக்கு மேல் போகாமல் வெட்டுகிறோம்
     final_news = "\n---\n".join(all_news)
-    return final_news[:1500]  
+    return final_news[:2000] # மொத்த டெக்ஸ்ட் 2000 எழுத்துக்கள் மட்டும்
 
 def generate_report(news_text, time_of_day):
     if not news_text:
@@ -88,7 +85,7 @@ def generate_report(news_text, time_of_day):
                 {"role": "system", "content": "You are a Financial Analyst writing in Tamil."},
                 {"role": "user", "content": prompt}
             ],
-            model="llama-3.1-8b-instant", # 👈 மிகச் சிறிய, வேகமான மாடல் (குறைந்த டோக்கன்)
+            model="groq/compound-mini", # 👈 மிக அதிக வரம்பு கொண்ட புதிய மாடல்
             temperature=0.5,
             max_tokens=1200 
         )
