@@ -55,24 +55,23 @@ async def fetch_recent_news():
     now = datetime.now(ist)
     time_limit = now - timedelta(hours=12) 
     
-    print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
     for channel in SOURCE_CHANNELS:
         try:
-            # ஒவ்வொரு சேனலில் இருந்தும் கடைசி 1 மெசேஜ் மட்டும் எடுக்கிறோம்
+            # ஒரு சேனலுக்கு 1 மெசேஜ் மட்டும்
             messages = await tele_client.get_messages(channel, limit=1) 
             for msg in messages:
                 if msg.date.astimezone(ist) > time_limit and msg.text:
-                    # ஒவ்வொரு மெசேஜின் அளவையும் 200 எழுத்துக்களுக்குள் வெட்டுகிறோம்
-                    short_text = msg.text[:200] 
+                    # ஒரு மெசேஜுக்கு 100 எழுத்துக்கள் மட்டும் (மிக முக்கியமான தலைப்பு மட்டும்)
+                    short_text = msg.text[:100] 
                     all_news.append(short_text)
         except Exception as e:
-            print(f"❌ {channel} படிக்க முடியவில்லை: {e}")
+            pass # எரர் வந்தால் அமைதியாக அடுத்ததற்குப் போகட்டும்
             
     await tele_client.disconnect()
     
-    # மொத்த டெக்ஸ்ட்டும் 2500 எழுத்துக்களுக்கு மேல் போகாமல் வெட்டுகிறோம்
+    # மொத்த டெக்ஸ்ட்டும் 1500 எழுத்துக்களுக்கு மேல் போகாமல் வெட்டுகிறோம்
     final_news = "\n---\n".join(all_news)
-    return final_news[:2500] 
+    return final_news[:1500]  
 
 def generate_report(news_text, time_of_day):
     if not news_text:
