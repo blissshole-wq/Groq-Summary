@@ -58,15 +58,21 @@ async def fetch_recent_news():
     print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
     for channel in SOURCE_CHANNELS:
         try:
-            messages = await tele_client.get_messages(channel, limit=15) # 15 மெசேஜ்கள் வரை எடுக்கலாம்
+            # ஒரு சேனலில் இருந்து கடைசி 3 மெசேஜ்களை மட்டும் எடுக்கிறோம் (டோக்கன் குறைக்க)
+            messages = await tele_client.get_messages(channel, limit=3) 
             for msg in messages:
                 if msg.date.astimezone(ist) > time_limit and msg.text:
-                    all_news.append(msg.text)
+                    # ஒவ்வொரு செய்தியின் அளவையும் 500 எழுத்துக்களுக்குள் சுருக்குகிறோம்
+                    short_text = msg.text[:500] 
+                    all_news.append(short_text)
         except Exception as e:
             print(f"❌ {channel} படிக்க முடியவில்லை: {e}")
             
     await tele_client.disconnect()
-    return "\n---\n".join(all_news)
+    
+    # மொத்த டெக்ஸ்ட்டும் 6000 எழுத்துக்களுக்கு மேல் போகாமல் வெட்டுகிறோம்
+    final_news = "\n---\n".join(all_news)
+    return final_news[:6000] 
 
 def generate_report(news_text, time_of_day):
     if not news_text:
