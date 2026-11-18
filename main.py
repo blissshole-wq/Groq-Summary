@@ -1,19 +1,42 @@
 import os
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from groq import Groq
+from telethon import TelegramClient
+from telethon.sessions import StringSession
 
-# ரகசியங்களை (Secrets) இங்கே படிக்கிறோம்
+# ரகசியங்கள்
 TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
+STRING_SESSION = os.environ.get("STRING_SESSION", "")
 
-# Groq AI செட் அப்
+# உங்கள் Source சேனல்களின் ID-கள்
+SOURCE_CHANNELS = [
+-1001096581370, 
+-1002897476578,
+-1001330148120,
+-1001498073945,
+-1001823497790,
+-1001291324441,
+-1003808911367,
+-1001450185719,
+-1001490398856,
+-1001345563500, 
+-1001274268284,
+-1001421618043,
+-1001299805329,
+-1001247488093,
+ 
+]
+
 client = Groq(api_key=GROQ_API_KEY)
+tele_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
 def send_telegram_message(message):
-    # டெலிகிராம் மெசேஜ் அளவு வரம்பு 4096 எழுத்துக்கள். அதற்கு மேல் இருந்தால் பிரித்து அனுப்ப வேண்டும்.
     if len(message) > 4000:
         messages = [message[i:i+4000] for i in range(0, len(message), 4000)]
         for msg in messages:
@@ -23,43 +46,72 @@ def send_telegram_message(message):
     else:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-        response = requests.post(url, json=payload)
-        print("Status:", response.status_code, response.text)
+        requests.post(url, json=payload)
 
-def get_ai_summary(time_of_day):
-    # நீங்கள் கேட்டது போலவே விரிவான, காரணங்களை விளக்கும் Prompt
+async def fetch_recent_news():
+    await tele_client.start()
+    all_news = []
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.now(ist)
+    time_limit = now - timedelta(hours=12) 
+    
+    print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
+    for channel in SOURCE_CHANNELS:
+        try:
+            messages = await tele_client.get_messages(channel, limit=15) # 15 மெசேஜ்கள் வரை எடுக்கலாம்
+            for msg in messages:
+                if msg.date.astimezone(ist) > time_limit and msg.text:
+                    all_news.append(msg.text)
+        except Exception as e:
+            print(f"❌ {channel} படிக்க முடியவில்லை: {e}")
+            
+    await tele_client.disconnect()
+    return "\n---\n".join(all_news)
+
+def generate_report(news_text, time_of_day):
+    if not news_text:
+        return "⚠️ கடந்த 12 மணி நேரத்தில் புதிய செய்திகள் எதுவும் இல்லை."
+
+    # நீங்கள் கேட்ட அந்த விரிவான, ஆழமான பகுப்பாய்வு Prompt இதோ 👇
     if time_of_day == "morning":
-        prompt = """
+        prompt = f"""
         Act as a Top Wall Street and Dalal Street Financial Analyst.
-        Write a comprehensive Morning Market Report in TAMIL. 
+        Analyze the following raw news collected from various channels in the last 12 hours:
+        {news_text}
+        
+        Write a comprehensive Morning Market Report in TAMIL based ONLY on these news items.
         
         Structure it exactly like this:
-        1. 🌍 Global Market Overnight Summary (US, Asian markets closing data).
-        2. 🇮🇳 Indian Market Pre-Open Scenario (GIFT Nifty, SGX Nifty, FII/DII data).
+        1. 🌍 Global Market Overnight Narrative (US/Asian market trends & major news).
+        2. 🇮🇳 Indian Market Pre-Open Sentiment (Overall mood, FII/DII general activity without specific numbers).
         3. 📰 Key News & Why it Matters (Explain the impact of 2-3 major world/India news on specific sectors like Tech, Pharma, Auto).
-        4. 🎯 Expert View: Mention what top market experts are saying about today's trend.
-        5. 💡 Strategy of the Day: Give a short, actionable trading idea.
+        4. 🎯 Expert View: What is the general market consensus?
+        5. 💡 Strategy of the Day: Actionable advice based on the news.
         
-        RULES:
-        - Do NOT just list numbers. Explain the STORY: "Why did the market go up or down? How does this number affect the common man or specific stocks?"
-        - Use professional Tamil with clear English financial terms in brackets (e.g., வெளிநாட்டு முதலீட்டாளர்கள் (FII)).
+        CRITICAL RULES:
+        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS. Focus entirely on the NARRATIVE.
+        - Explain the STORY: "Why did this happen? How does this news affect specific stocks?"
+        - Use professional Tamil with clear English financial terms in brackets.
         - Use heavy emojis for readability.
         """
     else:
-        prompt = """
+        prompt = f"""
         Act as a Top Wall Street and Dalal Street Financial Analyst.
-        Write a comprehensive Evening Market Wrap-Up Report in TAMIL.
+        Analyze the following raw news collected from various channels in the last 12 hours:
+        {news_text}
+        
+        Write a comprehensive Evening Market Wrap-Up Report in TAMIL based ONLY on these news items.
         
         Structure it exactly like this:
-        1. 📉 Today's Indian Market Recap (Sensex, Nifty close, Top Gainers & Losers).
-        2. 📈 Sectoral Story (Which sector performed well and WHY? e.g., IT sector fell due to US recession fears).
-        3. 🌍 Global Cues for Tomorrow (What happened in the US/Europe that will affect India tomorrow).
-        4. 📊 FII/DII Activity Explained (Explain the buying/selling data clearly).
-        5. 💡 Expert Analysis: How did the market start in the morning vs how it ended in the evening? What is the main takeaway from today?
+        1. 📉 Today's Indian Market Story (Overall market sentiment: Was it a bullish or bearish day based on the news?).
+        2. 📈 Sectoral Performance Narrative (Which sectors outperformed and WHY?).
+        3. 🌍 Global Cues for Tomorrow (What happened globally that will affect India tomorrow).
+        4. 📊 Market Dynamics (General FII/DII buying/selling trends without specific numbers).
+        5. 💡 Expert Analysis: What is the main takeaway from today?
         
-        RULES:
-        - Connect the NUMBERS with the NEWS. For example: "Reliance fell by 2% because of X news."
-        - Provide a story-like narrative, not just a boring data dump.
+        CRITICAL RULES:
+        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS.
+        - Connect the NEWS with the sector performance. Provide a story-like narrative.
         - Use professional Tamil with clear English financial terms.
         - Use heavy emojis for readability.
         """
@@ -67,36 +119,35 @@ def get_ai_summary(time_of_day):
     try:
         chat_completion = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are a highly experienced Financial Analyst who writes detailed, story-driven reports in Tamil."},
+                {"role": "system", "content": "You are a highly experienced Financial Analyst who writes detailed, story-driven reports in Tamil. You never hallucinate numbers."},
                 {"role": "user", "content": prompt}
             ],
             model="openai/gpt-oss-20b",
             temperature=0.6,
-            max_tokens=2500 # விரிவான அறிக்கைக்கு அதிக டோக்கன்கள் தேவை
+            max_tokens=2500 
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
-        print(f"⚠️ Groq AI Error: {e}")
-        return "⚠️ AI மூலம் செய்தியை உருவாக்க முடியவில்லை."
+        return f"⚠️ AI எரர்: {e}"
 
-def run_bot():
+async def run_bot():
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
     current_hour = now.hour
 
-    print(f"⏰ தற்போதைய நேரம்: {now.strftime('%I:%M %p')}")
-
-    if current_hour < 12:
-        print("☀️ காலை சந்தை அறிக்கை உருவாக்கப்படுகிறது...")
-        ai_message = get_ai_summary("morning")
-        final_msg = f"☀️ **காலை சந்தை அறிக்கை (Morning Market Report)**\n\n{ai_message}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
+    news_text = await fetch_recent_news()
     
+    if current_hour < 12:
+        print("☀️ காலை அறிக்கை உருவாக்கப்படுகிறது...")
+        report = generate_report(news_text, "morning")
+        final_msg = f"☀️ **காலை சந்தை அறிக்கை (Morning Report)**\n\n{report}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
     else:
-        print("🌙 இரவு சந்தை அறிக்கை உருவாக்கப்படுகிறது...")
-        ai_message = get_ai_summary("evening")
-        final_msg = f"🌙 **மாலை சந்தை நிலவரம் (Evening Market Wrap)**\n\n{ai_message}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
+        print("🌙 இரவு அறிக்கை உருவாக்கப்படுகிறது...")
+        report = generate_report(news_text, "evening")
+        final_msg = f"🌙 **மாலை சந்தை அறிக்கை (Evening Wrap)**\n\n{report}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
 
     send_telegram_message(final_msg)
 
 if __name__ == "__main__":
-    run_bot()
+    import asyncio
+    asyncio.run(run_bot())
