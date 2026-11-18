@@ -78,27 +78,10 @@ def generate_report(news_text, time_of_day):
     if not news_text:
         return "⚠️ கடந்த 12 மணி நேரத்தில் புதிய செய்திகள் எதுவும் இல்லை."
 
-    # மிகச் சிறிய, குறுகிய Prompt (டோக்கன் குறைக்க)
     if time_of_day == "morning":
-        prompt = f"""
-        Analyze these news items and write a short Morning Market Report in TAMIL:
-        {news_text}
-        
-        Rules:
-        1. Do NOT invent numbers. Use "XX" if unsure.
-        2. Explain the story: Global trend, Indian sentiment, and sector impacts.
-        3. Use emojis. Keep it concise.
-        """
+        prompt = f"Write a short Morning Market Report in TAMIL based on this news:\n{news_text}\nRules: Do not invent numbers (use XX). Explain global trend and Indian sectors. Use emojis."
     else:
-        prompt = f"""
-        Analyze these news items and write a short Evening Market Wrap in TAMIL:
-        {news_text}
-        
-        Rules:
-        1. Do NOT invent numbers. Use "XX" if unsure.
-        2. Explain the story: Market mood, sector performance, and tomorrow's outlook.
-        3. Use emojis. Keep it concise.
-        """
+        prompt = f"Write a short Evening Market Wrap in TAMIL based on this news:\n{news_text}\nRules: Do not invent numbers (use XX). Explain market mood and sector performance. Use emojis."
 
     try:
         chat_completion = client.chat.completions.create(
@@ -106,9 +89,9 @@ def generate_report(news_text, time_of_day):
                 {"role": "system", "content": "You are a Financial Analyst writing in Tamil."},
                 {"role": "user", "content": prompt}
             ],
-            model="openai/gpt-oss-20b",
+            model="llama-3.1-8b-instant", # 👈 மிகச் சிறிய, வேகமான மாடல் (குறைந்த டோக்கன்)
             temperature=0.5,
-            max_tokens=1500 # அவுட்புட் அளவையும் குறைத்துள்ளோம்
+            max_tokens=1200 
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
