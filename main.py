@@ -72,7 +72,7 @@ def generate_report(news_text, time_of_day):
     if not news_text:
         return "⚠️ கடந்த 12 மணி நேரத்தில் புதிய செய்திகள் எதுவும் இல்லை."
 
-    # நீங்கள் கேட்ட அந்த விரிவான, ஆழமான பகுப்பாய்வு Prompt இதோ 👇
+    # AI-க்கு நாம் கொடுக்கும் கட்டளை
     if time_of_day == "morning":
         prompt = f"""
         Act as a Top Wall Street and Dalal Street Financial Analyst.
@@ -89,12 +89,14 @@ def generate_report(news_text, time_of_day):
         5. 💡 Strategy of the Day: Actionable advice based on the news.
         
         CRITICAL RULES:
-        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS. Focus entirely on the NARRATIVE.
+        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS (like Sensex points, Nifty levels, exact percentage drops, or specific stock prices). 
+        - If you know a real number from the text provided, you can use it. If you don't know the exact number, you MUST write "XX" instead of guessing.
         - Explain the STORY: "Why did this happen? How does this news affect specific stocks?"
         - Use professional Tamil with clear English financial terms in brackets.
         - Use heavy emojis for readability.
         """
     else:
+        # ... (Evening-க்கும் இதே மாதிரி "XX" விதியைச் சேர்க்கவும்) ...
         prompt = f"""
         Act as a Top Wall Street and Dalal Street Financial Analyst.
         Analyze the following raw news collected from various channels in the last 12 hours:
@@ -103,14 +105,15 @@ def generate_report(news_text, time_of_day):
         Write a comprehensive Evening Market Wrap-Up Report in TAMIL based ONLY on these news items.
         
         Structure it exactly like this:
-        1. 📉 Today's Indian Market Story (Overall market sentiment: Was it a bullish or bearish day based on the news?).
+        1. 📉 Today's Indian Market Story (Overall market sentiment).
         2. 📈 Sectoral Performance Narrative (Which sectors outperformed and WHY?).
-        3. 🌍 Global Cues for Tomorrow (What happened globally that will affect India tomorrow).
-        4. 📊 Market Dynamics (General FII/DII buying/selling trends without specific numbers).
-        5. 💡 Expert Analysis: What is the main takeaway from today?
+        3. 🌍 Global Cues for Tomorrow.
+        4. 📊 Market Dynamics (General FII/DII trends).
+        5. 💡 Expert Analysis: What is the main takeaway?
         
         CRITICAL RULES:
-        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS.
+        - DO NOT INVENT OR IMAGINE ANY SPECIFIC NUMBERS. 
+        - If you know a real number from the text provided, you can use it. If you don't know the exact number, you MUST write "XX" instead of guessing.
         - Connect the NEWS with the sector performance. Provide a story-like narrative.
         - Use professional Tamil with clear English financial terms.
         - Use heavy emojis for readability.
@@ -119,17 +122,18 @@ def generate_report(news_text, time_of_day):
     try:
         chat_completion = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are a highly experienced Financial Analyst who writes detailed, story-driven reports in Tamil. You never hallucinate numbers."},
+                {"role": "system", "content": "You are a highly experienced Financial Analyst who writes detailed, story-driven reports in Tamil. You strictly follow the rule: No guessing numbers, use XX if unknown."},
                 {"role": "user", "content": prompt}
             ],
             model="openai/gpt-oss-20b",
             temperature=0.6,
             max_tokens=2500 
         )
+        # இங்கே re.sub ஐ நீக்கிவிட்டோம். AI-யே XX என்று எழுதும்.
         return chat_completion.choices[0].message.content
+        
     except Exception as e:
         return f"⚠️ AI எரர்: {e}"
-
 async def run_bot():
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
