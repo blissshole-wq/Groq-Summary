@@ -1,0 +1,34 @@
+name: Daily Market & News Alert
+
+on:
+  schedule:
+    # இந்திய நேரப்படி காலை 7:00 AM (UTC 1:30 AM)
+    - cron: '30 1 * * *'
+    # இந்திய நேரப்படி இரவு 8:00 PM (UTC 2:30 PM)
+    - cron: '30 14 * * *'
+  workflow_dispatch: # நீங்கள் மேனுவலாக டெஸ்ட் செய்ய இது உதவும்
+
+jobs:
+  send-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Telegram Bot Script
+        env:
+          # GitHub Secrets-ல் நீங்கள் சேர்த்த பெயர்கள் இங்கே இருக்க வேண்டும்
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python main.py
