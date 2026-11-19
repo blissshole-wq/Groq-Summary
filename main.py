@@ -85,7 +85,7 @@ def generate_report(news_text, time_of_day):
                 {"role": "system", "content": "You are a Financial Analyst writing in Tamil."},
                 {"role": "user", "content": prompt}
             ],
-            model="llama-3.1-8b-instant", # <-- இதைப் பயன்படுத்துங்கள்
+            model="openai/gpt-oss-20b"
             temperature=0.5,
             max_tokens=1200 
         )
