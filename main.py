@@ -1,3 +1,4 @@
+
 import os
 import pytz
 from datetime import datetime, timedelta
@@ -5,6 +6,9 @@ import requests
 from groq import Groq
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+import sqlite3
+import datetime
+
 
 # ரகசியங்கள்
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -35,6 +39,31 @@ SOURCE_CHANNELS = [
 
 client = Groq(api_key=GROQ_API_KEY)
 tele_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
+
+# டேட்டாபேஸ் உருவாக்கம் (ஒரு முறை மட்டும் ரன் ஆகும்)
+def setup_db():
+    conn = sqlite3.connect('news_database.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS news 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  headline TEXT, 
+                  source TEXT, 
+                  time_added TIMESTAMP)''')
+    conn.commit()
+    conn.close()
+
+# நியூஸை சேமிக்கும் ஃபங்க்ஷன்
+def save_news_to_db(headline, source):
+    conn = sqlite3.connect('news_database.db')
+    c = conn.cursor()
+    now = datetime.datetime.now()
+    c.execute("INSERT INTO news (headline, source, time_added) VALUES (?, ?, ?)", (headline, source, now))
+    conn.commit()
+    conn.close()
+    print(f"Saved to DB: {headline}")
+
+# ஸ்கிரிப்ட் ஸ்டார்ட் ஆகும்போது DB செட் பண்ண
+setup_db()
 
 def send_telegram_message(message):
     if len(message) > 4000:
