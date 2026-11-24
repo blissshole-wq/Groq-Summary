@@ -1,143 +1,94 @@
-
+import asyncio
 import os
-import pytz
-from datetime import datetime, timedelta
-import requests
-from groq import Groq
+import sqlite3
+from datetime import datetime, timedelta, timezone
+
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-import sqlite3
-import datetime
 
-
-# ரகசியங்கள்
-TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-API_ID = int(os.environ.get("API_ID", 0))
+DB_PATH = os.environ.get("NEWS_DB_PATH", "news_database.db")
+API_ID = int(os.environ.get("API_ID", "0"))
 API_HASH = os.environ.get("API_HASH", "")
 STRING_SESSION = os.environ.get("STRING_SESSION", "")
 
-# உங்கள் சேனல்கள்
 SOURCE_CHANNELS = [
--1001096581370, 
--1002897476578,
--1001330148120,
--1001498073945,
--1001823497790,
--1001291324441,
--1003808911367,
--1001450185719,
--1001490398856,
--1001345563500, 
--1001274268284,
--1001421618043,
--1001299805329,
--1001247488093,
-
+    -1001096581370,
+    -1002897476578,
+    -1001330148120,
+    -1001498073945,
+    -1001823497790,
+    -1001291324441,
+    -1003808911367,
+    -1001450185719,
+    -1001490398856,
+    -1001345563500,
+    -1001274268284,
+    -1001421618043,
+    -1001299805329,
+    -1001247488093,
 ]
 
-client = Groq(api_key=GROQ_API_KEY)
-tele_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
-# டேட்டாபேஸ் உருவாக்கம் (ஒரு முறை மட்டும் ரன் ஆகும்)
 def setup_db():
-    conn = sqlite3.connect('news_database.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS news 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  headline TEXT, 
-                  source TEXT, 
-                  time_added TIMESTAMP)''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS news
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         headline TEXT NOT NULL,
+                         source TEXT,
+                         time_added TIMESTAMP NOT NULL)''')
 
-# நியூஸை சேமிக்கும் ஃபங்க்ஷன்
-def save_news_to_db(headline, source):
-    conn = sqlite3.connect('news_database.db')
-    c = conn.cursor()
-    now = datetime.datetime.now()
-    c.execute("INSERT INTO news (headline, source, time_added) VALUES (?, ?, ?)", (headline, source, now))
-    conn.commit()
-    conn.close()
-    print(f"Saved to DB: {headline}")
 
-# ஸ்கிரிப்ட் ஸ்டார்ட் ஆகும்போது DB செட் பண்ண
-setup_db()
+def save_news(headline, source, saved_at):
+    with sqlite3.connect(DB_PATH) as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM news WHERE headline = ? AND time_added >= ? LIMIT 1",
+            (headline, (saved_at - timedelta(hours=12)).isoformat(" ")),
+        ).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO news (headline, source, time_added) VALUES (?, ?, ?)",
+                (headline, source, saved_at.isoformat(" ")),
+            )
 
-def send_telegram_message(message):
-    if len(message) > 4000:
-        messages = [message[i:i+4000] for i in range(0, len(message), 4000)]
-        for msg in messages:
-            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-            payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-            requests.post(url, json=payload)
-    else:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-        requests.post(url, json=payload)
 
-async def fetch_recent_news():
-    await tele_client.start()
-    all_news = []
-    ist = pytz.timezone('Asia/Kolkata')
-    from datetime import datetime
-    time_limit = from datetime import datetime - timedelta(hours=12) 
-    
-    print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
-    for channel in SOURCE_CHANNELS:
-        try:
-            messages = await tele_client.get_messages(channel, limit=1) 
-            for msg in messages:
-                if msg.date.astimezone(ist) > time_limit and msg.text:
-                    short_text = msg.text[:150] # ஒரு செய்தி 150 எழுத்துக்கள் மட்டும்
-                    all_news.append(short_text)
-        except Exception:
-            pass
-            
-    await tele_client.disconnect()
-    final_news = "\n---\n".join(all_news)
-    return final_news[:2000] # மொத்த டெக்ஸ்ட் 2000 எழுத்துக்கள் மட்டும்
+async def collect_news():
+    if API_ID == 0 or not API_HASH or not STRING_SESSION:
+        raise RuntimeError("Missing Telethon secrets: API_ID, API_HASH, or STRING_SESSION")
 
-def generate_report(news_text, time_of_day):
-    if not news_text:
-        return "⚠️ கடந்த 12 மணி நேரத்தில் புதிய செய்திகள் எதுவும் இல்லை."
-
-    if time_of_day == "morning":
-        prompt = f"Write a short Morning Market Report in TAMIL based on this news:\n{news_text}\nRules: Do not invent numbers (use XX). Explain global trend and Indian sectors. Use emojis."
-    else:
-        prompt = f"Write a short Evening Market Wrap in TAMIL based on this news:\n{news_text}\nRules: Do not invent numbers (use XX). Explain market mood and sector performance. Use emojis."
+    setup_db()
+    tele_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
+    time_limit = datetime.now(timezone.utc) - timedelta(hours=12)
+    saved = 0
 
     try:
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are a Financial Analyst writing in Tamil."},
-                {"role": "user", "content": prompt}
-            ],
-            model="openai/gpt-oss-20b",
-            temperature=0.5,
-            max_tokens=1200 
-        )
-        return chat_completion.choices[0].message.content
-    except Exception as e:
-        return f"⚠️ AI எரர்: {e}"
+        await tele_client.start()
+        for channel in SOURCE_CHANNELS:
+            try:
+                messages = await tele_client.get_messages(channel, limit=5)
+                for message in messages:
+                    if not message.text or not message.date:
+                        continue
+                    message_date = message.date.astimezone(timezone.utc)
+                    if message_date < time_limit:
+                        continue
 
-async def run_bot():
-    ist = pytz.timezone('Asia/Kolkata')
-    from datetime import datetime
-    current_hour = now.hour
+                    headline = " ".join(message.text.split())[:500]
+                    source = str(getattr(message.chat, "title", channel))
+                    before = sqlite3.connect(DB_PATH).execute(
+                        "SELECT count(*) FROM news"
+                    ).fetchone()[0]
+                    save_news(headline, source, message_date)
+                    after = sqlite3.connect(DB_PATH).execute(
+                        "SELECT count(*) FROM news"
+                    ).fetchone()[0]
+                    saved += after - before
+            except Exception as exc:
+                print(f"Channel {channel} error: {exc}")
+    finally:
+        await tele_client.disconnect()
 
-    news_text = await fetch_recent_news()
-    
-    if current_hour < 12:
-        report = generate_report(news_text, "morning")
-        final_msg = f"☀️ **காலை சந்தை அறிக்கை**\n\n{report}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
-    else:
-        report = generate_report(news_text, "evening")
-        final_msg = f"🌙 **மாலை சந்தை அறிக்கை**\n\n{report}\n\n_நேரம்: {now.strftime('%d-%m-%Y %I:%M %p')}_"
+    print(f"Saved {saved} recent news items")
 
-    send_telegram_message(final_msg)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(run_bot())
+    asyncio.run(collect_news())
