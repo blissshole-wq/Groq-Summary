@@ -124,7 +124,7 @@ def generate_report(news_text, time_of_day):
 
 async def run_bot():
     ist = pytz.timezone('Asia/Kolkata')
-    now = datetime.now(ist)
+    from datetime import datetime
     current_hour = now.hour
 
     news_text = await fetch_recent_news()
