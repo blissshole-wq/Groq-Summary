@@ -4,19 +4,16 @@ import requests
 import os
 from groq import Groq
 
-DB_PATH = "news_database.db"
+DB_PATH = os.environ.get("NEWS_DB_PATH", "news_database.db")
 
 
 def setup_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS news
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  headline TEXT,
-                  source TEXT,
-                  time_added TIMESTAMP)''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS news
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         headline TEXT NOT NULL,
+                         source TEXT,
+                         time_added TIMESTAMP NOT NULL)''')
 
 
 def send_telegram_alert(message):
@@ -40,12 +37,13 @@ def send_telegram_alert(message):
 
 def get_recent_news():
     setup_db()
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    time_limit = datetime.datetime.now() - datetime.timedelta(hours=12)
-    c.execute("SELECT headline, source FROM news WHERE time_added > ?", (time_limit.isoformat(" "),))
-    rows = c.fetchall()
-    conn.close()
+    time_limit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=12)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT headline, source FROM news WHERE time_added >= ? ORDER BY time_added DESC",
+            (time_limit.isoformat(" "),),
+        ).fetchall()
 
     return "\n".join([f"- {row[0]} (Source: {row[1]})" for row in rows])
 
