@@ -89,6 +89,16 @@ async def collect_news():
 
     print(f"Saved {saved} recent news items")
 
+# Scheduler ஃபங்க்ஷனுக்கு உள்ளே:
+def run_summary_script():
+    print("⏰ Running AI Summary...")
+    # ஃபைல் இருக்கான்னு செக் பண்றோம்
+    if os.path.exists("summary.py"):
+        print("✅ summary.py found! Running...")
+        subprocess.run(["python", "summary.py"])
+    else:
+        print("❌ ERROR: summary.py NOT FOUND in Render!")
+
 
 if __name__ == "__main__":
     asyncio.run(collect_news())
