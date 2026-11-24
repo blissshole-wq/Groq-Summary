@@ -23,16 +23,15 @@ def send_telegram_alert(message):
         print("Telegram Error: BOT_TOKEN or CHAT_ID is missing")
         return
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     try:
         response = requests.post(
-            url,
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
             timeout=30,
         )
         response.raise_for_status()
-    except Exception as e:
-        print("Telegram Error:", e)
+    except Exception as exc:
+        print("Telegram Error:", exc)
 
 
 def get_recent_news():
@@ -45,41 +44,39 @@ def get_recent_news():
             (time_limit.isoformat(" "),),
         ).fetchall()
 
-    return "\n".join([f"- {row[0]} (Source: {row[1]})" for row in rows])
+    return "\n".join(f"- {row[0]} (Source: {row[1]})" for row in rows)
 
 
 def summarize_with_ai(news_text):
     if not news_text:
         return "😴 No new updates since last summary."
 
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if not groq_api_key:
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
         return "❌ AI Error: GROQ_API_KEY is missing"
 
-    client = Groq(api_key=groq_api_key)
-
+    client = Groq(api_key=api_key)
     prompt = f"""
-    You are a financial news editor. I have a list of news headlines.
-    1. Remove duplicate news (if multiple channels report the same thing, merge it into one).
-    2. Categorize each news item into THREE categories with emojis:
-       - 🟢 GOOD (Positive news like profits, new orders, expansion)
-       - 🟡 MODERATE (Neutral news like management changes, minor updates)
-       - 🔴 DANGER (Bad news like losses, legal issues, resignations)
-    3. Format the output as a precise, 1-line bullet point for each category.
-    4. Keep it extremely brief and in English.
+You are a financial news editor. Use only the supplied headlines.
+1. Remove duplicate news.
+2. Categorize items into:
+   - 🟢 GOOD
+   - 🟡 MODERATE
+   - 🔴 DANGER
+3. Give one concise bullet per category.
 
-    News List:
-    {news_text}
-    """
+News List:
+{news_text}
+"""
 
     try:
-        chat_completion = client.chat.completions.create(
+        result = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama3-8b-8192",
         )
-        return chat_completion.choices[0].message.content
-    except Exception as e:
-        return f"❌ AI Error: {e}"
+        return result.choices[0].message.content
+    except Exception as exc:
+        return f"❌ AI Error: {exc}"
 
 
 def run_summary():
@@ -89,9 +86,8 @@ def run_summary():
     print("AI is Summarizing...")
     summary = summarize_with_ai(news_text)
 
-    if summary and "No new updates" not in summary:
-        alert_message = f"📰 *NEWS SUMMARY REPORT*\n\n{summary}"
-        send_telegram_alert(alert_message)
+    if news_text and summary and "No new updates" not in summary:
+        send_telegram_alert(f"📰 *NEWS SUMMARY REPORT*\n\n{summary}")
         print("Summary Sent to Telegram!")
     else:
         print("No news to summarize.")
