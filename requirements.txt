@@ -2,3 +2,6 @@ requests
 pytz
 groq
 telethon
+yfinance
+pandas
+pandas-ta-classic
