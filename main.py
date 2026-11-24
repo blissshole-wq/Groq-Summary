@@ -81,8 +81,8 @@ async def fetch_recent_news():
     await tele_client.start()
     all_news = []
     ist = pytz.timezone('Asia/Kolkata')
-    now = datetime.now(ist)
-    time_limit = now - timedelta(hours=12) 
+    from datetime import datetime
+    time_limit = from datetime import datetime - timedelta(hours=12) 
     
     print("📥 செய்திகள் சேகரிக்கப்படுகின்றன...")
     for channel in SOURCE_CHANNELS:
