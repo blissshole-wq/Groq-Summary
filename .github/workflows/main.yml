@@ -1,37 +1,43 @@
-name: Daily Market & News Alert
+name: Anandan's Trading System
 
 on:
   schedule:
-    # இந்திய நேரப்படி காலை 7:00 AM (UTC 1:30 AM)
-    - cron: '30 1 * * *'
-    # இந்திய நேரப்படி இரவு 8:00 PM (UTC 2:30 PM)
-    - cron: '30 14 * * *'
-  workflow_dispatch: # நீங்கள் மேனுவலாக டெஸ்ட் செய்ய இது உதவும்
+    # 1. காலை 8:00 AM IST (UTC 2:30 AM) - News Summary
+    - cron: '30 2 * * *'
+    # 2. மதியம் 2:00 PM IST (UTC 8:30 AM) - Stock Scanner
+    - cron: '30 8 * * *'
+    # 3. மாலை 5:00 PM IST (UTC 11:30 AM) - News Summary
+    - cron: '30 11 * * *'
+  workflow_dispatch: # மேனுவலா டெஸ்ட் பண்ண
 
 jobs:
-  send-alert:
+  # வேலை 1: AI நியூஸ் சம்மரி
+  news-summary:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Telegram Bot Script
+      - run: pip install -r requirements.txt
+      - name: Run Summary
         env:
-          # GitHub Secrets-ல் நீங்கள் சேர்த்த பெயர்கள் இங்கே இருக்க வேண்டும்
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          API_ID: ${{ secrets.API_ID }}
-          API_HASH: ${{ secrets.API_HASH }}
-          STRING_SESSION: ${{ secrets.STRING_SESSION }}
-        run: python main.py
+        run: python summary.py
+
+  # வேலை 2: ஸ்டாக் ஸ்கேனர்
+  stock-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Run Scanner
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python scanner.py
