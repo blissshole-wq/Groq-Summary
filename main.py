@@ -2,6 +2,8 @@ import asyncio
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import subprocess
 
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -28,7 +30,7 @@ SOURCE_CHANNELS = [
     -1001247488093,
 ]
 
-
+# --- 1. டேட்டாபேஸ் செட்-அப் ---
 def setup_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('''CREATE TABLE IF NOT EXISTS news
@@ -36,7 +38,6 @@ def setup_db():
                          headline TEXT NOT NULL,
                          source TEXT,
                          time_added TIMESTAMP NOT NULL)''')
-
 
 def save_news(headline, source, saved_at):
     with sqlite3.connect(DB_PATH) as conn:
@@ -50,7 +51,7 @@ def save_news(headline, source, saved_at):
                 (headline, source, saved_at.isoformat(" ")),
             )
 
-
+# --- 2. நியூஸ் சேகரிப்பு ---
 async def collect_news():
     if API_ID == 0 or not API_HASH or not STRING_SESSION:
         raise RuntimeError("Missing Telethon secrets: API_ID, API_HASH, or STRING_SESSION")
@@ -74,13 +75,16 @@ async def collect_news():
 
                     headline = " ".join(message.text.split())[:500]
                     source = str(getattr(message.chat, "title", channel))
-                    before = sqlite3.connect(DB_PATH).execute(
-                        "SELECT count(*) FROM news"
-                    ).fetchone()[0]
+                    
+                    # டேட்டாபேஸ்ல இருக்கிற நியூஸ் எண்ணிக்கையை செக் பண்றோம்
+                    with sqlite3.connect(DB_PATH) as conn:
+                        before = conn.execute("SELECT count(*) FROM news").fetchone()[0]
+                    
                     save_news(headline, source, message_date)
-                    after = sqlite3.connect(DB_PATH).execute(
-                        "SELECT count(*) FROM news"
-                    ).fetchone()[0]
+                    
+                    with sqlite3.connect(DB_PATH) as conn:
+                        after = conn.execute("SELECT count(*) FROM news").fetchone()[0]
+                    
                     saved += after - before
             except Exception as exc:
                 print(f"Channel {channel} error: {exc}")
@@ -89,16 +93,44 @@ async def collect_news():
 
     print(f"Saved {saved} recent news items")
 
-# Scheduler ஃபங்க்ஷனுக்கு உள்ளே:
+# --- 3. Scheduler ஃபங்க்ஷன்கள் ---
 def run_summary_script():
     print("⏰ Running AI Summary...")
-    # ஃபைல் இருக்கான்னு செக் பண்றோம்
     if os.path.exists("summary.py"):
         print("✅ summary.py found! Running...")
         subprocess.run(["python", "summary.py"])
     else:
         print("❌ ERROR: summary.py NOT FOUND in Render!")
 
+def run_scanner_script():
+    print("⏰ Running Stock Scanner...")
+    if os.path.exists("scanner.py"):
+        print("✅ scanner.py found! Running...")
+        subprocess.run(["python", "scanner.py"])
+    else:
+        print("❌ ERROR: scanner.py NOT FOUND in Render!")
+
+# --- 4. மெயின் எக்ஸிகியூஷன் (Scheduler செட்-அப்) ---
+async def main():
+    # முதல்ல நியூஸை சேகரிக்கிறோம்
+    await collect_news()
+
+    # Scheduler-ஐ செட் பண்றோம்
+    scheduler = AsyncIOScheduler()
+    
+    # காலை 8:00 AM IST (UTC 2:30) - Summary
+    scheduler.add_job(run_summary_script, 'cron', hour=2, minute=30) 
+    # மதியம் 2:00 PM IST (UTC 8:30) - Scanner
+    scheduler.add_job(run_scanner_script, 'cron', hour=8, minute=30)
+    # மாலை 5:00 PM IST (UTC 11:30) - Summary
+    scheduler.add_job(run_summary_script, 'cron', hour=11, minute=30)
+
+    scheduler.start()
+    print("✅ Scheduler Started Successfully!")
+
+    # ரெண்டர் சர்வர் ஸ்லீப் ஆகாம இருக்க, இந்த லூப் எப்பவும் ரன் ஆகிட்டே இருக்கும்
+    while True:
+        await asyncio.sleep(3600) # ஒரு மணி நேரத்துக்கு ஒரு முறை வெயிட் பண்ணும்
 
 if __name__ == "__main__":
-    asyncio.run(collect_news())
+    asyncio.run(main())
