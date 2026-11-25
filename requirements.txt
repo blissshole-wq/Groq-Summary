@@ -5,3 +5,4 @@ telethon
 yfinance
 pandas
 pandas-ta-classic
+apscheduler
